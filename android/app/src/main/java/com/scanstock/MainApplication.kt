@@ -1,4 +1,4 @@
-package com.scanstoc
+package com.scanstock
 
 import android.app.Application
 import com.facebook.react.PackageList
