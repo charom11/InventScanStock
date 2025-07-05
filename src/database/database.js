@@ -160,10 +160,15 @@ export const createUser = async (db, { email, username, passwordHash }) => {
 
   try {
     const result = await db.executeSql(insertQuery, values);
-    return result[0].insertId;
+    if (result && result[0] && result[0].insertId !== undefined) {
+      return result[0].insertId;
+    } else {
+      console.error('User creation failed: No insertId returned', { result, insertQuery, values });
+      throw new Error('User creation failed: No insertId returned');
+    }
   } catch (error) {
-    console.error(error);
-    if (error.message.includes('UNIQUE constraint failed')) {
+    console.error('SQL Error in createUser:', error, insertQuery, values);
+    if (error.message && error.message.includes('UNIQUE constraint failed')) {
       if (error.message.includes('email')) {
         throw Error('Email already exists');
       } else if (error.message.includes('username')) {
@@ -314,4 +319,34 @@ export const cleanupExpiredSessions = async (db) => {
     throw Error('Failed to cleanup expired sessions');
   }
 };
+
+// Utility to drop and recreate the Users table (WARNING: deletes all users)
+export const recreateUsersTable = async (db) => {
+  try {
+    await db.executeSql('DROP TABLE IF EXISTS Users;');
+    const usersQuery = `
+      CREATE TABLE IF NOT EXISTS Users (
+        user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_login DATETIME,
+        is_email_verified BOOLEAN DEFAULT 0,
+        login_attempts INTEGER DEFAULT 0,
+        locked_until DATETIME,
+        reset_token TEXT,
+        reset_token_expires DATETIME
+      );
+    `;
+    await db.executeSql(usersQuery);
+    console.log('Users table recreated successfully');
+  } catch (error) {
+    console.error('Error recreating Users table', error);
+  }
+};
+
+// To use this utility, call the following after opening your DB connection (e.g., in initDB):
+// const db = await getDBConnection();
+// await recreateUsersTable(db);
 

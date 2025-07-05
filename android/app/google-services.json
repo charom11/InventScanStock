@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "35360572580",
+    "project_id": "scan-stock-44bf2",
+    "storage_bucket": "scan-stock-44bf2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:35360572580:android:039bd63ae991ff82455231",
+        "android_client_info": {
+          "package_name": "com.scanstock"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCdPi8zdMa9ro08B8epBvu_cT1I0A8AskM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
