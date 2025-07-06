@@ -12,7 +12,12 @@
           "package_name": "com.scanstock"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "35360572580-rd90f8e904998s8hmbcul63uql0v0sm3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCdPi8zdMa9ro08B8epBvu_cT1I0A8AskM"
@@ -20,7 +25,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "35360572580-rd90f8e904998s8hmbcul63uql0v0sm3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

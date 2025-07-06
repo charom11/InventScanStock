@@ -11,7 +11,7 @@ import InventoryOverviewScreen from '../screens/InventoryOverviewScreen';
 import SalesHistoryScreen from '../screens/SalesHistoryScreen';
 import ProductManagementScreen from '../screens/ProductManagementScreen';
 import UserProfileScreen from '../screens/UserProfileScreen';
-import DebugScreen from '../screens/DebugScreen';
+
 
 const Stack = createStackNavigator();
 
@@ -87,14 +87,6 @@ const AppNavigator = () => {
               options={{ 
                 headerShown: true,
                 title: 'User Profile',
-              }}
-            />
-            <Stack.Screen 
-              name="Debug" 
-              component={DebugScreen}
-              options={{ 
-                headerShown: true,
-                title: 'Debug Console',
               }}
             />
           </>
