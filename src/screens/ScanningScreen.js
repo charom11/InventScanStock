@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert, TextInput, TouchableOpacity } from 'react-native';
 import { getDBConnection, getProductByBarcode, addSale } from '../database/database';
+import { useAuth } from '../context/AuthContext';
 
 const ScanningScreen = ({ navigation }) => {
   const [barcodeInput, setBarcodeInput] = useState('');
+  const { user } = useAuth();
 
   const handleBarcodeScanned = async (barcode) => {
     try {
@@ -11,7 +13,7 @@ const ScanningScreen = ({ navigation }) => {
       const product = await getProductByBarcode(db, barcode);
 
       if (product) {
-        await addSale(db, { productId: product.product_id });
+        await addSale(db, { productId: product.product_id, userId: user.id });
         Alert.alert('Sale Logged', `${product.product_name} sold.`,
           [{ text: 'OK', onPress: () => navigation.goBack() }]
         );

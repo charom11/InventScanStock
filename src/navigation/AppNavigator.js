@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { TouchableOpacity, Text } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 
 import LoginPage from '../screens/LoginPage';
@@ -11,8 +11,23 @@ import InventoryOverviewScreen from '../screens/InventoryOverviewScreen';
 import SalesHistoryScreen from '../screens/SalesHistoryScreen';
 import ProductManagementScreen from '../screens/ProductManagementScreen';
 import UserProfileScreen from '../screens/UserProfileScreen';
+import DebugScreen from '../screens/DebugScreen';
 
 const Stack = createStackNavigator();
+
+// Logout button component
+const LogoutButton = () => {
+  const { logOut } = useAuth();
+  
+  return (
+    <TouchableOpacity
+      onPress={logOut}
+      style={styles.logoutButton}
+    >
+      <Text style={styles.logoutButtonText}>Logout</Text>
+    </TouchableOpacity>
+  );
+};
 
 const AppNavigator = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -39,9 +54,7 @@ const AppNavigator = () => {
               options={{ 
                 headerShown: true,
                 title: 'Inventory',
-                headerRight: () => (
-                  <LogoutButton />
-                ),
+                headerRight: LogoutButton,
               }}
             />
             <Stack.Screen 
@@ -76,6 +89,14 @@ const AppNavigator = () => {
                 title: 'User Profile',
               }}
             />
+            <Stack.Screen 
+              name="Debug" 
+              component={DebugScreen}
+              options={{ 
+                headerShown: true,
+                title: 'Debug Console',
+              }}
+            />
           </>
         )}
       </Stack.Navigator>
@@ -83,18 +104,14 @@ const AppNavigator = () => {
   );
 };
 
-// Logout button component
-const LogoutButton = () => {
-  const { logOut } = useAuth();
-  
-  return (
-    <TouchableOpacity
-      onPress={logOut}
-      style={{ marginRight: 15 }}
-    >
-      <Text style={{ color: '#007AFF', fontSize: 16 }}>Logout</Text>
-    </TouchableOpacity>
-  );
-};
+const styles = StyleSheet.create({
+  logoutButton: {
+    marginRight: 15,
+  },
+  logoutButtonText: {
+    color: '#007AFF',
+    fontSize: 16,
+  },
+});
 
 export default AppNavigator;

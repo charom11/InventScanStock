@@ -11,6 +11,7 @@ export const createTables = async (db) => {
       email TEXT UNIQUE NOT NULL,
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
+      password_salt TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       last_login DATETIME,
       is_email_verified BOOLEAN DEFAULT 0,
@@ -70,6 +71,7 @@ export const createTables = async (db) => {
 export const initDB = async () => {
   const db = await getDBConnection();
   await createTables(db);
+  await migrateUsersTable(db);
 };
 
 export const getProducts = async (db) => {
@@ -115,11 +117,11 @@ export const addProduct = async (db, { productName, barcode }) => {
   }
 };
 
-export const addSale = async (db, { productId, quantity = 1 }) => {
+export const addSale = async (db, { productId, userId, quantity = 1 }) => {
   const insertQuery = `
-    INSERT INTO Sales (product_id, quantity) VALUES (?, ?);
+    INSERT INTO Sales (product_id, user_id, quantity) VALUES (?, ?, ?);
   `;
-  const values = [productId, quantity];
+  const values = [productId, userId, quantity];
 
   try {
     return db.executeSql(insertQuery, values);
@@ -152,11 +154,11 @@ export const getSales = async (db, userId) => {
 };
 
 // User management functions
-export const createUser = async (db, { email, username, passwordHash }) => {
+export const createUser = async (db, { email, username, passwordHash, passwordSalt }) => {
   const insertQuery = `
-    INSERT INTO Users (email, username, password_hash) VALUES (?, ?, ?);
+    INSERT INTO Users (email, username, password_hash, password_salt) VALUES (?, ?, ?, ?);
   `;
-  const values = [email, username, passwordHash];
+  const values = [email, username, passwordHash, passwordSalt];
 
   try {
     const result = await db.executeSql(insertQuery, values);
@@ -242,15 +244,15 @@ export const updateUserProfile = async (db, userId, { email, username }) => {
   }
 };
 
-export const updateUserPassword = async (db, userId, passwordHash) => {
+export const updateUserPassword = async (db, userId, passwordHash, passwordSalt) => {
   const updateQuery = `
     UPDATE Users 
-    SET password_hash = ?
+    SET password_hash = ?, password_salt = ?
     WHERE user_id = ?;
   `;
   
   try {
-    await db.executeSql(updateQuery, [passwordHash, userId]);
+    await db.executeSql(updateQuery, [passwordHash, passwordSalt, userId]);
   } catch (error) {
     console.error(error);
     throw Error('Failed to update password');
@@ -330,6 +332,7 @@ export const recreateUsersTable = async (db) => {
         email TEXT UNIQUE NOT NULL,
         username TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
+        password_salt TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_login DATETIME,
         is_email_verified BOOLEAN DEFAULT 0,
@@ -346,7 +349,35 @@ export const recreateUsersTable = async (db) => {
   }
 };
 
+// Migration function to add password_salt column to existing Users table
+export const migrateUsersTable = async (db) => {
+  try {
+    // Check if password_salt column exists
+    const results = await db.executeSql("PRAGMA table_info(Users);");
+    let hasPasswordSaltColumn = false;
+    if (results && results[0] && results[0].rows && results[0].rows.length > 0) {
+      for (let i = 0; i < results[0].rows.length; i++) {
+        const column = results[0].rows.item(i);
+        if (column.name === 'password_salt') {
+          hasPasswordSaltColumn = true;
+          break;
+        }
+      }
+    }
+    if (!hasPasswordSaltColumn) {
+      await db.executeSql('ALTER TABLE Users ADD COLUMN password_salt TEXT;');
+      console.log('Added password_salt column to Users table');
+      await db.executeSql('UPDATE Users SET password_salt = "default_salt_needs_reset" WHERE password_salt IS NULL;');
+      console.log('Updated existing users with default salt (password reset required)');
+    } else {
+      console.log('password_salt column already exists');
+    }
+  } catch (error) {
+    console.error('Error migrating Users table:', error);
+  }
+};
+
 // To use this utility, call the following after opening your DB connection (e.g., in initDB):
 // const db = await getDBConnection();
-// await recreateUsersTable(db);
+// await migrateUsersTable(db);
 

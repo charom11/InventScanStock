@@ -1,16 +1,18 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getDBConnection, getSales } from '../database/database';
+import { database } from '../utils/firebase';
 
 const SalesHistoryScreen = () => {
   const [sales, setSales] = useState([]);
 
   const loadSales = useCallback(async () => {
     try {
-      const db = await getDBConnection();
-      const storedSales = await getSales(db);
-      setSales(storedSales);
+      const snapshot = await database().ref('/sales').once('value');
+      const salesObj = snapshot.val() || {};
+      // Convert to array
+      const salesList = Object.keys(salesObj).map(key => ({ id: key, ...salesObj[key] }));
+      setSales(salesList.reverse()); // Most recent first
     } catch (error) {
       console.error(error);
     }
@@ -24,8 +26,8 @@ const SalesHistoryScreen = () => {
 
   const renderItem = ({ item }) => (
     <View style={styles.itemContainer}>
-      <Text style={styles.itemText}>{item.product_name}</Text>
-      <Text style={styles.itemText}>{new Date(item.sale_timestamp).toLocaleString()}</Text>
+      <Text style={styles.itemText}>{item.product_name || 'Unknown Product'}</Text>
+      <Text style={styles.itemText}>{item.sale_timestamp ? new Date(item.sale_timestamp).toLocaleString() : ''}</Text>
     </View>
   );
 
@@ -35,7 +37,7 @@ const SalesHistoryScreen = () => {
       <FlatList
         data={sales}
         renderItem={renderItem}
-        keyExtractor={(item) => item.sale_id.toString()}
+        keyExtractor={(item) => item.id}
         style={styles.list}
       />
     </View>

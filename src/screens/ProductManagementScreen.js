@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, FlatList, Alert } from 'react-native';
-import { getDBConnection, getProducts, addProduct } from '../database/database';
+import { View, Text, TextInput, Button, StyleSheet, FlatList, Alert, Image } from 'react-native';
+import { firestore } from '../utils/firebase';
 
 const ProductManagementScreen = ({ route }) => {
   const [productName, setProductName] = useState('');
@@ -9,9 +9,9 @@ const ProductManagementScreen = ({ route }) => {
 
   const loadProducts = useCallback(async () => {
     try {
-      const db = await getDBConnection();
-      const storedProducts = await getProducts(db);
-      setProducts(storedProducts);
+      const snapshot = await firestore().collection('products').get();
+      const productList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setProducts(productList);
     } catch (error) {
       console.error(error);
     }
@@ -33,15 +33,18 @@ const ProductManagementScreen = ({ route }) => {
       return;
     }
     try {
-      const db = await getDBConnection();
-      await addProduct(db, { productName, barcode });
+      await firestore().collection('products').add({
+        product_name: productName,
+        barcode,
+        // Optionally add more fields
+      });
       setProductName('');
       setBarcode('');
       loadProducts(); // Refresh the list
       Alert.alert('Success', 'Product added successfully.');
     } catch (error) {
       console.error(error);
-      Alert.alert('Error', 'Failed to add product. The barcode might already exist.');
+      Alert.alert('Error', 'Failed to add product.');
     }
   };
 
@@ -72,7 +75,7 @@ const ProductManagementScreen = ({ route }) => {
       <FlatList
         data={products}
         renderItem={renderItem}
-        keyExtractor={(item) => item.product_id.toString()}
+        keyExtractor={(item) => item.id}
         style={styles.list}
       />
     </View>

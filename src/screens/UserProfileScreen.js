@@ -103,10 +103,10 @@ const UserProfileScreen = ({ navigation }) => {
       }
 
       // Hash new password
-      const { hash: newPasswordHash } = hashPassword(newPassword);
+      const { hash: newPasswordHash, salt: newPasswordSalt } = hashPassword(newPassword);
       
       // Update password
-      await updateUserPassword(db, user.id, newPasswordHash);
+      await updateUserPassword(db, user.id, newPasswordHash, newPasswordSalt);
       
       Alert.alert('Success', 'Password changed successfully');
       setIsChangingPassword(false);

@@ -1,9 +1,9 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert } from 'react-native';
 import { getDBConnection, createUser, getUserByEmail, updateUserLoginAttempts, createSession, getSession, invalidateSession, cleanupExpiredSessions } from '../database/database';
 import { hashPassword, verifyPassword, createSessionToken, isAccountLocked, shouldLockAccount, calculateLockoutTime, sanitizeInput } from '../utils/security';
 import { validateForm } from '../utils/validation';
+import { auth } from '../utils/firebase';
 
 const AuthContext = createContext();
 
@@ -61,50 +61,19 @@ export const AuthProvider = ({ children }) => {
 
   const signUp = async (email, password, username) => {
     try {
-      // Validate input
-      const sanitizedEmail = sanitizeInput(email);
-      const sanitizedUsername = sanitizeInput(username);
-      
-      const validation = validateForm({
-        email: sanitizedEmail,
-        username: sanitizedUsername,
-        password,
-      });
-      
-      if (!validation.isValid) {
-        const firstError = Object.values(validation.errors)[0];
-        throw new Error(firstError);
+      // Firebase Auth sign up
+      const userCredential = await auth().createUserWithEmailAndPassword(email, password);
+      const user = userCredential.user;
+      // Optionally update display name
+      if (user && username) {
+        await user.updateProfile({ displayName: username });
       }
-      
-      const db = await getDBConnection();
-      
-      // Hash password
-      const { hash: passwordHash } = hashPassword(password);
-      
-      // Create user
-      const userId = await createUser(db, {
-        email: sanitizedEmail,
-        username: sanitizedUsername,
-        passwordHash,
+      setUser({
+        id: user.uid,
+        email: user.email,
+        username: user.displayName || username || '',
       });
-      
-      // Create session
-      const { token, expiresAt } = createSessionToken(userId);
-      await createSession(db, userId, token, expiresAt);
-      
-      // Store token
-      await AsyncStorage.setItem('authToken', token);
-      
-      const user = {
-        id: userId,
-        email: sanitizedEmail,
-        username: sanitizedUsername,
-      };
-      
-      setToken(token);
-      setUser(user);
       setIsAuthenticated(true);
-      
       return { success: true, user };
     } catch (error) {
       console.error('Signup error:', error);
@@ -114,71 +83,16 @@ export const AuthProvider = ({ children }) => {
 
   const logIn = async (email, password) => {
     try {
-      const sanitizedEmail = sanitizeInput(email);
-      
-      if (!sanitizedEmail.trim() || !password.trim()) {
-        throw new Error('Please enter both email and password');
-      }
-      
-      const db = await getDBConnection();
-      
-      // Get user by email
-      const user = await getUserByEmail(db, sanitizedEmail);
-      
-      if (!user) {
-        throw new Error('Invalid email or password');
-      }
-      
-      // Check if account is locked
-      if (isAccountLocked(user)) {
-        const lockTime = new Date(user.locked_until);
-        const remainingTime = Math.ceil((lockTime - new Date()) / 1000 / 60);
-        throw new Error(`Account is locked. Try again in ${remainingTime} minutes.`);
-      }
-      
-      // Verify password
-      const isValidPassword = verifyPassword(password, user.password_hash, user.password_salt || '');
-      
-      if (!isValidPassword) {
-        // Increment login attempts
-        const newAttempts = (user.login_attempts || 0) + 1;
-        let lockedUntil = null;
-        
-        if (shouldLockAccount(newAttempts)) {
-          lockedUntil = calculateLockoutTime();
-        }
-        
-        await updateUserLoginAttempts(db, user.user_id, newAttempts, lockedUntil);
-        
-        if (shouldLockAccount(newAttempts)) {
-          throw new Error('Too many failed attempts. Account locked for 15 minutes.');
-        } else {
-          const remainingAttempts = 5 - newAttempts;
-          throw new Error(`Invalid email or password. ${remainingAttempts} attempts remaining.`);
-        }
-      }
-      
-      // Reset login attempts on successful login
-      await updateUserLoginAttempts(db, user.user_id, 0, null);
-      
-      // Create session
-      const { token, expiresAt } = createSessionToken(user.user_id);
-      await createSession(db, user.user_id, token, expiresAt);
-      
-      // Store token
-      await AsyncStorage.setItem('authToken', token);
-      
-      const userData = {
-        id: user.user_id,
+      // Firebase Auth login
+      const userCredential = await auth().signInWithEmailAndPassword(email, password);
+      const user = userCredential.user;
+      setUser({
+        id: user.uid,
         email: user.email,
-        username: user.username,
-      };
-      
-      setToken(token);
-      setUser(userData);
+        username: user.displayName || '',
+      });
       setIsAuthenticated(true);
-      
-      return { success: true, user: userData };
+      return { success: true, user };
     } catch (error) {
       console.error('Login error:', error);
       throw error;
