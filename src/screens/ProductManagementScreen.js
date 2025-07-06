@@ -1,21 +1,32 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, FlatList, Alert, Image } from 'react-native';
-import { firestore } from '../utils/firebase';
+import { View, Text, TextInput, Button, StyleSheet, FlatList, Alert, Image, TouchableOpacity, Picker } from 'react-native';
+import { firestore, storage, database } from '../utils/firebase';
+import { useAuth } from '../context/AuthContext';
+import ProductDetailsScreen from './ProductDetailsScreen'; // Only needed if you want to use it directly
+// import ImagePicker from 'react-native-image-picker'; // Uncomment if installed
 
-const ProductManagementScreen = ({ route }) => {
+const CATEGORIES = ['All', 'Electronics', 'Groceries', 'Clothing', 'Books', 'Other'];
+
+const ProductManagementScreen = ({ route, navigation }) => {
   const [productName, setProductName] = useState('');
   const [barcode, setBarcode] = useState('');
+  const [category, setCategory] = useState('Other');
   const [products, setProducts] = useState([]);
+  const [imageUri, setImageUri] = useState(null);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [search, setSearch] = useState('');
+  const [filterCategory, setFilterCategory] = useState('All');
+  const { user } = useAuth();
 
   const loadProducts = useCallback(async () => {
     try {
-      const snapshot = await firestore().collection('products').get();
+      const snapshot = await firestore().collection('products').where('userId', '==', user.id).get();
       const productList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProducts(productList);
     } catch (error) {
       console.error(error);
     }
-  }, []);
+  }, [user.id]);
 
   useEffect(() => {
     loadProducts();
@@ -27,37 +38,135 @@ const ProductManagementScreen = ({ route }) => {
     }
   }, [route.params?.scannedBarcode]);
 
-  const handleAddProduct = async () => {
+  // Placeholder for image picker
+  const handlePickImage = async () => {
+    // Use react-native-image-picker or similar here
+    // Example:
+    // ImagePicker.launchImageLibrary({}, async (response) => {
+    //   if (!response.didCancel && !response.error) {
+    //     setImageUri(response.uri);
+    //   }
+    // });
+    Alert.alert('Image Picker', 'Image picker integration goes here.');
+  };
+
+  const handleAddOrEditProduct = async () => {
     if (!productName.trim() || !barcode.trim()) {
       Alert.alert('Validation Error', 'Please enter both product name and barcode.');
       return;
     }
+    let imageUrl = '';
     try {
-      await firestore().collection('products').add({
-        product_name: productName,
-        barcode,
-        // Optionally add more fields
-      });
+      if (imageUri) {
+        const filename = `products/${Date.now()}_${barcode}.jpg`;
+        const ref = storage().ref(filename);
+        await ref.putFile(imageUri);
+        imageUrl = await ref.getDownloadURL();
+      }
+      if (editingProduct) {
+        // Update product
+        await firestore().collection('products').doc(editingProduct.id).update({
+          product_name: productName,
+          barcode,
+          imageUrl: imageUrl || editingProduct.imageUrl || '',
+          category,
+        });
+        Alert.alert('Success', 'Product updated successfully.');
+      } else {
+        // Add product
+        const docRef = await firestore().collection('products').add({
+          product_name: productName,
+          barcode,
+          imageUrl,
+          userId: user.id,
+          category,
+        });
+        // Log a sale in Realtime Database
+        await database().ref('/sales').push({
+          product_name: productName,
+          barcode,
+          sale_timestamp: Date.now(),
+          userId: user.id,
+          category,
+        });
+        Alert.alert('Success', 'Product added and sale logged.');
+      }
       setProductName('');
       setBarcode('');
-      loadProducts(); // Refresh the list
-      Alert.alert('Success', 'Product added successfully.');
+      setImageUri(null);
+      setEditingProduct(null);
+      setCategory('Other');
+      loadProducts();
     } catch (error) {
       console.error(error);
-      Alert.alert('Error', 'Failed to add product.');
+      Alert.alert('Error', 'Failed to add or update product.');
     }
   };
 
+  const handleDeleteProduct = async (product) => {
+    try {
+      await firestore().collection('products').doc(product.id).delete();
+      // Optionally delete image from Storage if exists
+      if (product.imageUrl) {
+        const ref = storage().refFromURL(product.imageUrl);
+        await ref.delete();
+      }
+      loadProducts();
+      Alert.alert('Deleted', 'Product deleted successfully.');
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Failed to delete product.');
+    }
+  };
+
+  const handleEditProduct = (product) => {
+    setProductName(product.product_name);
+    setBarcode(product.barcode);
+    setImageUri(null); // Optionally set to product.imageUrl if you want to allow image editing
+    setEditingProduct(product);
+    setCategory(product.category || 'Other');
+  };
+
+  const handleProductPress = (product) => {
+    navigation.navigate('ProductDetails', { product });
+  };
+
+  // Filter and search logic
+  const filteredProducts = products.filter(item => {
+    const matchesSearch =
+      item.product_name.toLowerCase().includes(search.toLowerCase()) ||
+      item.barcode.toLowerCase().includes(search.toLowerCase());
+    const matchesCategory =
+      filterCategory === 'All' || (item.category || 'Other') === filterCategory;
+    return matchesSearch && matchesCategory;
+  });
+
   const renderItem = ({ item }) => (
-    <View style={styles.itemContainer}>
-      <Text style={styles.itemText}>{item.product_name}</Text>
-      <Text style={styles.itemText}>{item.barcode}</Text>
-    </View>
+    <TouchableOpacity onPress={() => handleProductPress(item)} style={{ flex: 1 }}>
+      <View style={styles.itemContainer}>
+        {item.imageUrl ? (
+          <Image source={{ uri: item.imageUrl }} style={styles.productImage} />
+        ) : (
+          <View style={styles.imagePlaceholder}><Text>📦</Text></View>
+        )}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.itemText}>{item.product_name}</Text>
+          <Text style={styles.itemText}>{item.barcode}</Text>
+          <Text style={styles.categoryText}>{item.category || 'Other'}</Text>
+        </View>
+        <TouchableOpacity style={styles.editButton} onPress={() => handleEditProduct(item)}>
+          <Text style={styles.editButtonText}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.deleteButton} onPress={() => handleDeleteProduct(item)}>
+          <Text style={styles.deleteButtonText}>Delete</Text>
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
   );
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Add New Product</Text>
+      <Text style={styles.title}>{editingProduct ? 'Edit Product' : 'Add New Product'}</Text>
       <TextInput
         style={styles.input}
         placeholder="Product Name"
@@ -70,10 +179,37 @@ const ProductManagementScreen = ({ route }) => {
         value={barcode}
         onChangeText={setBarcode}
       />
-      <Button title="Add Product" onPress={handleAddProduct} />
+      <Picker
+        selectedValue={category}
+        style={styles.picker}
+        onValueChange={setCategory}
+      >
+        {CATEGORIES.filter(c => c !== 'All').map(cat => (
+          <Picker.Item key={cat} label={cat} value={cat} />
+        ))}
+      </Picker>
+      <TouchableOpacity style={styles.imagePickerButton} onPress={handlePickImage}>
+        <Text style={styles.imagePickerButtonText}>{imageUri ? 'Image Selected' : 'Pick Image'}</Text>
+      </TouchableOpacity>
+      <Button title={editingProduct ? 'Update Product' : 'Add Product'} onPress={handleAddOrEditProduct} />
       <Text style={styles.title}>Existing Products</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Search by name or barcode"
+        value={search}
+        onChangeText={setSearch}
+      />
+      <Picker
+        selectedValue={filterCategory}
+        style={styles.picker}
+        onValueChange={setFilterCategory}
+      >
+        {CATEGORIES.map(cat => (
+          <Picker.Item key={cat} label={cat} value={cat} />
+        ))}
+      </Picker>
       <FlatList
-        data={products}
+        data={filteredProducts}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         style={styles.list}
@@ -100,18 +236,74 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingHorizontal: 10,
   },
+  picker: {
+    height: 40,
+    marginBottom: 10,
+  },
+  imagePickerButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  imagePickerButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
   list: {
     flex: 1,
   },
   itemContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#ccc',
   },
+  productImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    marginRight: 10,
+    backgroundColor: '#eee',
+  },
+  imagePlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    marginRight: 10,
+    backgroundColor: '#eee',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   itemText: {
     fontSize: 16,
+  },
+  categoryText: {
+    fontSize: 12,
+    color: '#888',
+    fontStyle: 'italic',
+  },
+  editButton: {
+    backgroundColor: '#FFD600',
+    borderRadius: 8,
+    padding: 8,
+    marginLeft: 8,
+  },
+  editButtonText: {
+    color: '#333',
+    fontWeight: '600',
+  },
+  deleteButton: {
+    backgroundColor: '#FF3B30',
+    borderRadius: 8,
+    padding: 8,
+    marginLeft: 8,
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontWeight: '600',
   },
 });
 
