@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDBConnection, createUser, getUserByEmail, updateUserLoginAttempts, createSession, getSession, invalidateSession, cleanupExpiredSessions } from '../database/database';
 import { hashPassword, verifyPassword, createSessionToken, isAccountLocked, shouldLockAccount, calculateLockoutTime, sanitizeInput } from '../utils/security';
 import { validateForm } from '../utils/validation';
-import { auth } from '../utils/firebase';
+import { authService } from '../utils/firebase';
 
 const AuthContext = createContext();
 
@@ -62,7 +62,7 @@ export const AuthProvider = ({ children }) => {
   const signUp = async (email, password, username) => {
     try {
       // Firebase Auth sign up
-      const userCredential = await auth().createUserWithEmailAndPassword(email, password);
+      const userCredential = await authService.createUserWithEmailAndPassword(email, password);
       const user = userCredential.user;
       // Optionally update display name
       if (user && username) {
@@ -84,7 +84,7 @@ export const AuthProvider = ({ children }) => {
   const logIn = async (email, password) => {
     try {
       // Firebase Auth login
-      const userCredential = await auth().signInWithEmailAndPassword(email, password);
+      const userCredential = await authService.signInWithEmailAndPassword(email, password);
       const user = userCredential.user;
       setUser({
         id: user.uid,
