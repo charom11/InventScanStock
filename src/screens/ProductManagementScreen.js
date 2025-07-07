@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, FlatList, Alert, Image, TouchableOpacity, Picker } from 'react-native';
-import { firestore, storage, database } from '../utils/firebase';
+import { View, Text, TextInput, Button, StyleSheet, FlatList, Alert, Image, TouchableOpacity } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import { firestoreService, storageService, databaseService } from '../utils/firebase';
 import { useAuth } from '../context/AuthContext';
 import ProductDetailsScreen from './ProductDetailsScreen'; // Only needed if you want to use it directly
 // import ImagePicker from 'react-native-image-picker'; // Uncomment if installed
@@ -20,11 +21,11 @@ const ProductManagementScreen = ({ route, navigation }) => {
 
   const loadProducts = useCallback(async () => {
     try {
-      const snapshot = await firestore().collection('products').where('userId', '==', user.id).get();
+      const snapshot = await firestoreService.collection('products').where('userId', '==', user.id).get();
       const productList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProducts(productList);
     } catch (error) {
-      console.error(error);
+      console.error('Error loading products:', error);
     }
   }, [user.id]);
 
@@ -59,13 +60,13 @@ const ProductManagementScreen = ({ route, navigation }) => {
     try {
       if (imageUri) {
         const filename = `products/${Date.now()}_${barcode}.jpg`;
-        const ref = storage().ref(filename);
+        const ref = storageService.ref(filename);
         await ref.putFile(imageUri);
         imageUrl = await ref.getDownloadURL();
       }
       if (editingProduct) {
         // Update product
-        await firestore().collection('products').doc(editingProduct.id).update({
+        await firestoreService.collection('products').doc(editingProduct.id).update({
           product_name: productName,
           barcode,
           imageUrl: imageUrl || editingProduct.imageUrl || '',
@@ -74,7 +75,7 @@ const ProductManagementScreen = ({ route, navigation }) => {
         Alert.alert('Success', 'Product updated successfully.');
       } else {
         // Add product
-        const docRef = await firestore().collection('products').add({
+        const docRef = await firestoreService.collection('products').add({
           product_name: productName,
           barcode,
           imageUrl,
@@ -82,7 +83,7 @@ const ProductManagementScreen = ({ route, navigation }) => {
           category,
         });
         // Log a sale in Realtime Database
-        await database().ref('/sales').push({
+        await databaseService.ref('/sales').push({
           product_name: productName,
           barcode,
           sale_timestamp: Date.now(),
@@ -105,16 +106,16 @@ const ProductManagementScreen = ({ route, navigation }) => {
 
   const handleDeleteProduct = async (product) => {
     try {
-      await firestore().collection('products').doc(product.id).delete();
+      await firestoreService.collection('products').doc(product.id).delete();
       // Optionally delete image from Storage if exists
       if (product.imageUrl) {
-        const ref = storage().refFromURL(product.imageUrl);
+        const ref = storageService.refFromURL(product.imageUrl);
         await ref.delete();
       }
       loadProducts();
       Alert.alert('Deleted', 'Product deleted successfully.');
     } catch (error) {
-      console.error(error);
+      console.error('Error deleting product:', error);
       Alert.alert('Error', 'Failed to delete product.');
     }
   };

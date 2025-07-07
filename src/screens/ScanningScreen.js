@@ -24,8 +24,8 @@ const ScanningScreen = ({ navigation }) => {
         ]);
       }
     } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'An error occurred while processing the barcode.');
+      console.error('Error in handleBarcodeScanned:', error);
+      Alert.alert('Error', 'An error occurred while processing the barcode. Please try again.');
     }
   };
 

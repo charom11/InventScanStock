@@ -93,13 +93,13 @@ export const getProducts = async (db) => {
 export const getProductByBarcode = async (db, barcode) => {
   try {
     const results = await db.executeSql('SELECT * FROM Products WHERE barcode = ?', [barcode]);
-    if (results[0].rows.length > 0) {
+    if (results && results[0] && results[0].rows && results[0].rows.length > 0) {
       return results[0].rows.item(0);
     }
     return null;
   } catch (error) {
-    console.error(error);
-    throw Error('Failed to get product by barcode');
+    console.error('Error in getProductByBarcode:', error);
+    return null; // Return null instead of throwing error
   }
 };
 

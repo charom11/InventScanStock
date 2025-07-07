@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Image, Alert, ScrollView, TouchableOpacity, Picker, FlatList } from 'react-native';
-import { firestore, storage, database } from '../utils/firebase';
+import { View, Text, TextInput, Button, StyleSheet, Image, Alert, ScrollView, TouchableOpacity, FlatList } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import { firestoreService, storageService, databaseService } from '../utils/firebase';
 
 const CATEGORIES = ['Electronics', 'Groceries', 'Clothing', 'Books', 'Other'];
 
@@ -18,12 +19,12 @@ const ProductDetailsScreen = ({ route, navigation }) => {
     // Load sales for this product from Realtime Database
     const loadSales = async () => {
       try {
-        const snapshot = await database().ref('/sales').orderByChild('barcode').equalTo(product.barcode).once('value');
+        const snapshot = await databaseService.ref('/sales').orderByChild('barcode').equalTo(product.barcode).once('value');
         const salesObj = snapshot.val() || {};
         const salesList = Object.keys(salesObj).map(key => ({ id: key, ...salesObj[key] }));
         setSales(salesList.reverse());
       } catch (error) {
-        console.error(error);
+        console.error('Error loading sales:', error);
       }
     };
     loadSales();
@@ -39,11 +40,11 @@ const ProductDetailsScreen = ({ route, navigation }) => {
       let newImageUrl = imageUrl;
       if (imageUri) {
         const filename = `products/${Date.now()}_${barcode}.jpg`;
-        const ref = storage().ref(filename);
+        const ref = storageService.ref(filename);
         await ref.putFile(imageUri);
         newImageUrl = await ref.getDownloadURL();
       }
-      await firestore().collection('products').doc(product.id).update({
+      await firestoreService.collection('products').doc(product.id).update({
         product_name: productName,
         barcode,
         category,
@@ -54,7 +55,7 @@ const ProductDetailsScreen = ({ route, navigation }) => {
       Alert.alert('Success', 'Product updated successfully.');
       navigation.setParams({ product: { ...product, product_name: productName, barcode, category, imageUrl: newImageUrl } });
     } catch (error) {
-      console.error(error);
+      console.error('Error updating product:', error);
       Alert.alert('Error', 'Failed to update product.');
     }
   };

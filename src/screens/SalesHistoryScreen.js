@@ -1,20 +1,20 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { database } from '../utils/firebase';
+import { databaseService } from '../utils/firebase';
 
 const SalesHistoryScreen = () => {
   const [sales, setSales] = useState([]);
 
   const loadSales = useCallback(async () => {
     try {
-      const snapshot = await database().ref('/sales').once('value');
+      const snapshot = await databaseService.ref('/sales').once('value');
       const salesObj = snapshot.val() || {};
       // Convert to array
       const salesList = Object.keys(salesObj).map(key => ({ id: key, ...salesObj[key] }));
       setSales(salesList.reverse()); // Most recent first
     } catch (error) {
-      console.error(error);
+      console.error('Error loading sales history:', error);
     }
   }, []);
 
