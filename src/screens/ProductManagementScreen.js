@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, FlatList, Alert, Image, TouchableOpacity } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { firestoreService, storageService, databaseService } from '../utils/firebase';
+import { db, storage } from '../utils/supabase';
 import { useAuth } from '../context/AuthContext';
 import ProductDetailsScreen from './ProductDetailsScreen'; // Only needed if you want to use it directly
 // import ImagePicker from 'react-native-image-picker'; // Uncomment if installed
@@ -21,8 +21,7 @@ const ProductManagementScreen = ({ route, navigation }) => {
 
   const loadProducts = useCallback(async () => {
     try {
-      const snapshot = await firestoreService.collection('products').where('userId', '==', user.id).get();
-      const productList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const productList = await db.getProducts(user.id);
       setProducts(productList);
     } catch (error) {
       console.error('Error loading products:', error);
@@ -60,34 +59,32 @@ const ProductManagementScreen = ({ route, navigation }) => {
     try {
       if (imageUri) {
         const filename = `products/${Date.now()}_${barcode}.jpg`;
-        const ref = storageService.ref(filename);
-        await ref.putFile(imageUri);
-        imageUrl = await ref.getDownloadURL();
+        await storage.uploadFile('product-images', filename, imageUri);
+        imageUrl = storage.getPublicUrl('product-images', filename);
       }
       if (editingProduct) {
         // Update product
-        await firestoreService.collection('products').doc(editingProduct.id).update({
+        await db.updateProduct(editingProduct.id, {
           product_name: productName,
           barcode,
-          imageUrl: imageUrl || editingProduct.imageUrl || '',
+          image_url: imageUrl || editingProduct.image_url || '',
           category,
         });
         Alert.alert('Success', 'Product updated successfully.');
       } else {
         // Add product
-        const docRef = await firestoreService.collection('products').add({
+        await db.addProduct({
           product_name: productName,
           barcode,
-          imageUrl,
-          userId: user.id,
+          image_url: imageUrl,
+          user_id: user.id,
           category,
         });
-        // Log a sale in Realtime Database
-        await databaseService.ref('/sales').push({
+        // Log a sale
+        await db.addSale({
           product_name: productName,
           barcode,
-          sale_timestamp: Date.now(),
-          userId: user.id,
+          user_id: user.id,
           category,
         });
         Alert.alert('Success', 'Product added and sale logged.');
@@ -106,11 +103,11 @@ const ProductManagementScreen = ({ route, navigation }) => {
 
   const handleDeleteProduct = async (product) => {
     try {
-      await firestoreService.collection('products').doc(product.id).delete();
+      await db.deleteProduct(product.id);
       // Optionally delete image from Storage if exists
-      if (product.imageUrl) {
-        const ref = storageService.refFromURL(product.imageUrl);
-        await ref.delete();
+      if (product.image_url) {
+        const path = product.image_url.split('/').pop(); // Extract filename from URL
+        await storage.deleteFile('product-images', path);
       }
       loadProducts();
       Alert.alert('Deleted', 'Product deleted successfully.');
@@ -145,8 +142,8 @@ const ProductManagementScreen = ({ route, navigation }) => {
   const renderItem = ({ item }) => (
     <TouchableOpacity onPress={() => handleProductPress(item)} style={{ flex: 1 }}>
       <View style={styles.itemContainer}>
-        {item.imageUrl ? (
-          <Image source={{ uri: item.imageUrl }} style={styles.productImage} />
+        {item.image_url ? (
+          <Image source={{ uri: item.image_url }} style={styles.productImage} />
         ) : (
           <View style={styles.imagePlaceholder}><Text>📦</Text></View>
         )}

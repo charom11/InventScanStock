@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert, TextInput, TouchableOpacity } from 'react-native';
-import { getDBConnection, getProductByBarcode, addSale } from '../database/database';
+import { db } from '../utils/supabase';
 import { useAuth } from '../context/AuthContext';
 
 const ScanningScreen = ({ navigation }) => {
@@ -9,11 +9,16 @@ const ScanningScreen = ({ navigation }) => {
 
   const handleBarcodeScanned = async (barcode) => {
     try {
-      const db = await getDBConnection();
-      const product = await getProductByBarcode(db, barcode);
+      const product = await db.getProductByBarcode(barcode, user.id);
 
       if (product) {
-        await addSale(db, { productId: product.product_id, userId: user.id });
+        await db.addSale({
+          product_id: product.id,
+          product_name: product.product_name,
+          barcode: product.barcode,
+          user_id: user.id,
+          category: product.category,
+        });
         Alert.alert('Sale Logged', `${product.product_name} sold.`,
           [{ text: 'OK', onPress: () => navigation.goBack() }]
         );

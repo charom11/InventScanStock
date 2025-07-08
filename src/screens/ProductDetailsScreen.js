@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, Image, Alert, ScrollView, TouchableOpacity, FlatList } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { firestoreService, storageService, databaseService } from '../utils/firebase';
+import { db, storage } from '../utils/supabase';
 
 const CATEGORIES = ['Electronics', 'Groceries', 'Clothing', 'Books', 'Other'];
 
@@ -10,25 +10,24 @@ const ProductDetailsScreen = ({ route, navigation }) => {
   const [productName, setProductName] = useState(product.product_name);
   const [barcode, setBarcode] = useState(product.barcode);
   const [category, setCategory] = useState(product.category || 'Other');
-  const [imageUrl, setImageUrl] = useState(product.imageUrl || '');
+  const [imageUrl, setImageUrl] = useState(product.image_url || '');
   const [imageUri, setImageUri] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [sales, setSales] = useState([]);
 
   useEffect(() => {
-    // Load sales for this product from Realtime Database
+    // Load sales for this product from Supabase
     const loadSales = async () => {
       try {
-        const snapshot = await databaseService.ref('/sales').orderByChild('barcode').equalTo(product.barcode).once('value');
-        const salesObj = snapshot.val() || {};
-        const salesList = Object.keys(salesObj).map(key => ({ id: key, ...salesObj[key] }));
-        setSales(salesList.reverse());
+        const salesList = await db.getSales(product.user_id);
+        const productSales = salesList.filter(sale => sale.barcode === product.barcode);
+        setSales(productSales);
       } catch (error) {
         console.error('Error loading sales:', error);
       }
     };
     loadSales();
-  }, [product.barcode]);
+  }, [product.barcode, product.user_id]);
 
   // Placeholder for image picker
   const handlePickImage = async () => {
@@ -40,20 +39,19 @@ const ProductDetailsScreen = ({ route, navigation }) => {
       let newImageUrl = imageUrl;
       if (imageUri) {
         const filename = `products/${Date.now()}_${barcode}.jpg`;
-        const ref = storageService.ref(filename);
-        await ref.putFile(imageUri);
-        newImageUrl = await ref.getDownloadURL();
+        await storage.uploadFile('product-images', filename, imageUri);
+        newImageUrl = storage.getPublicUrl('product-images', filename);
       }
-      await firestoreService.collection('products').doc(product.id).update({
+      await db.updateProduct(product.id, {
         product_name: productName,
         barcode,
         category,
-        imageUrl: newImageUrl,
+        image_url: newImageUrl,
       });
       setImageUrl(newImageUrl);
       setIsEditing(false);
       Alert.alert('Success', 'Product updated successfully.');
-      navigation.setParams({ product: { ...product, product_name: productName, barcode, category, imageUrl: newImageUrl } });
+      navigation.setParams({ product: { ...product, product_name: productName, barcode, category, image_url: newImageUrl } });
     } catch (error) {
       console.error('Error updating product:', error);
       Alert.alert('Error', 'Failed to update product.');

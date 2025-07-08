@@ -1,22 +1,21 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { databaseService } from '../utils/firebase';
+import { db } from '../utils/supabase';
+import { useAuth } from '../context/AuthContext';
 
 const SalesHistoryScreen = () => {
   const [sales, setSales] = useState([]);
+  const { user } = useAuth();
 
   const loadSales = useCallback(async () => {
     try {
-      const snapshot = await databaseService.ref('/sales').once('value');
-      const salesObj = snapshot.val() || {};
-      // Convert to array
-      const salesList = Object.keys(salesObj).map(key => ({ id: key, ...salesObj[key] }));
-      setSales(salesList.reverse()); // Most recent first
+      const salesList = await db.getSales(user.id);
+      setSales(salesList); // Already ordered by created_at desc
     } catch (error) {
       console.error('Error loading sales history:', error);
     }
-  }, []);
+  }, [user.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -27,7 +26,7 @@ const SalesHistoryScreen = () => {
   const renderItem = ({ item }) => (
     <View style={styles.itemContainer}>
       <Text style={styles.itemText}>{item.product_name || 'Unknown Product'}</Text>
-      <Text style={styles.itemText}>{item.sale_timestamp ? new Date(item.sale_timestamp).toLocaleString() : ''}</Text>
+      <Text style={styles.itemText}>{item.created_at ? new Date(item.created_at).toLocaleString() : ''}</Text>
     </View>
   );
 
