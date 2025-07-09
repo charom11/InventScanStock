@@ -59,8 +59,8 @@ const ProductManagementScreen = ({ route, navigation }) => {
     try {
       if (imageUri) {
         const filename = `products/${Date.now()}_${barcode}.jpg`;
-        await storage.uploadFile('product-images', filename, imageUri);
-        imageUrl = storage.getPublicUrl('product-images', filename);
+        await storage.uploadFile('product-images', user.id, filename, imageUri);
+        imageUrl = storage.getPublicUrl('product-images', `${user.id}/${filename}`);
       }
       if (editingProduct) {
         // Update product
@@ -106,8 +106,9 @@ const ProductManagementScreen = ({ route, navigation }) => {
       await db.deleteProduct(product.id);
       // Optionally delete image from Storage if exists
       if (product.image_url) {
-        const path = product.image_url.split('/').pop(); // Extract filename from URL
-        await storage.deleteFile('product-images', path);
+        // Extract filename from URL
+        const path = product.image_url.split('/').slice(-2).join('/');
+        await storage.deleteFile('product-images', `${product.user_id}/${path}`);
       }
       loadProducts();
       Alert.alert('Deleted', 'Product deleted successfully.');

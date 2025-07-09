@@ -39,8 +39,8 @@ const ProductDetailsScreen = ({ route, navigation }) => {
       let newImageUrl = imageUrl;
       if (imageUri) {
         const filename = `products/${Date.now()}_${barcode}.jpg`;
-        await storage.uploadFile('product-images', filename, imageUri);
-        newImageUrl = storage.getPublicUrl('product-images', filename);
+        await storage.uploadFile('product-images', product.user_id, filename, imageUri);
+        newImageUrl = storage.getPublicUrl('product-images', `${product.user_id}/${filename}`);
       }
       await db.updateProduct(product.id, {
         product_name: productName,

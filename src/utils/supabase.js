@@ -1,11 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Replace these with your actual Supabase credentials
-// You'll get these from your Supabase project dashboard
-const supabaseUrl = 'YOUR_SUPABASE_URL';
-const supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL = 'https://abatpxobqsbxxqrenlxn.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFiYXRweG9icXNieHhxcmVubHhuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE4NjY1MDcsImV4cCI6MjA2NzQ0MjUwN30.7TS2WBFvW7wHBCla2qHNtpw6oy6okR1rv5kMGz7aWsk'; // TODO: Replace with your actual anon public key
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Auth helpers
 export const auth = {
@@ -135,10 +133,11 @@ export const db = {
 // Storage helpers (replaces Firebase Storage)
 export const storage = {
   // Upload a file
-  uploadFile: async (bucket, path, file) => {
+  uploadFile: async (bucket, userId, path, file) => {
+    const fullPath = `${userId}/${path}`;
     const { data, error } = await supabase.storage
       .from(bucket)
-      .upload(path, file);
+      .upload(fullPath, file, { upsert: true });
     if (error) throw error;
     return data;
   },
@@ -158,6 +157,4 @@ export const storage = {
       .remove([path]);
     if (error) throw error;
   }
-};
-
-export default supabase; 
+}; 

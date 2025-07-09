@@ -1,7 +1,7 @@
 -- Supabase Database Schema for ScanStock App
 
 -- Enable Row Level Security (RLS)
-ALTER DATABASE postgres SET "app.jwt_secret" TO 'your-jwt-secret';
+
 
 -- Create products table
 CREATE TABLE products (
