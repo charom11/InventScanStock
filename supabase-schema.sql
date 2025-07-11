@@ -67,6 +67,12 @@ DROP POLICY IF EXISTS "Users can delete their own products" ON products;
 CREATE POLICY "Users can delete their own products" ON products
     FOR DELETE USING (auth.uid() = user_id);
 
+-- Add price to products if not exists
+ALTER TABLE products ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) DEFAULT 0;
+-- Add price to sales if not exists
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) DEFAULT 0;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 1;
+
 -- Trigger to update updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$

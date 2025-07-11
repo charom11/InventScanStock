@@ -102,6 +102,17 @@ export const db = {
     return data;
   },
 
+  // Get product by id
+  getProductById: async (id) => {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
+  },
+
   // Add a sale
   addSale: async (saleData) => {
     const { data, error } = await supabase

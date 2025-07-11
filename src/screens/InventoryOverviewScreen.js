@@ -20,6 +20,14 @@ const InventoryOverviewScreen = ({ navigation }) => {
           title="Scan Barcode"
           onPress={() => navigation.navigate('Scanning')}
         />
+       </View>
+      <View style={styles.buttonContainer}>
+        <Button
+          title="SELL PRODUCT"
+          onPress={() => navigation.navigate('SellProduct')}
+          color="#28a745"
+          style={{ marginVertical: 10 }}
+        />
       </View>
       <View style={styles.buttonContainer}>
         <Button

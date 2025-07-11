@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, FlatList, Alert, Image, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, FlatList, Alert, Image, TouchableOpacity, Platform, Modal } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
 import { Picker } from '@react-native-picker/picker';
 import { db, storage } from '../utils/supabase';
@@ -18,6 +18,10 @@ const ProductManagementScreen = ({ route, navigation }) => {
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
   const [quantity, setQuantity] = useState('1');
+  const [sellQuantity, setSellQuantity] = useState('1');
+  const [price, setPrice] = useState('');
+  const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+  const [pendingSale, setPendingSale] = useState(null); // {product, quantity, price, inventoryAfter, date}
   const { user } = useAuth();
 
   // Dropdown state for react-native-dropdown-picker
@@ -77,6 +81,7 @@ const ProductManagementScreen = ({ route, navigation }) => {
           image_url: imageUrl || editingProduct.image_url || '',
           category,
           quantity: parseInt(quantity, 10) || 1,
+          price: parseFloat(price) || 0,
         });
         Alert.alert('Success', 'Product updated successfully.');
       } else {
@@ -88,6 +93,7 @@ const ProductManagementScreen = ({ route, navigation }) => {
           user_id: user.id,
           category,
           quantity: parseInt(quantity, 10) || 1,
+          price: parseFloat(price) || 0,
         });
         // Log a sale
         await db.addSale({
@@ -104,6 +110,7 @@ const ProductManagementScreen = ({ route, navigation }) => {
       setEditingProduct(null);
       setCategory('Other');
       setQuantity('1');
+      setPrice('');
       loadProducts();
     } catch (error) {
       console.error(error);
@@ -135,10 +142,120 @@ const ProductManagementScreen = ({ route, navigation }) => {
     setEditingProduct(product);
     setCategory(product.category || 'Other');
     setQuantity(product.quantity ? String(product.quantity) : '1');
+    setPrice(product.price ? String(product.price) : '');
   };
 
   const handleProductPress = (product) => {
     navigation.navigate('ProductDetails', { product });
+  };
+
+  const handleSellProduct = (product) => {
+    setSellQuantity('1');
+    Alert.prompt(
+      'Sell Product',
+      `Enter quantity to sell for "${product.product_name}" (Available: ${product.quantity ?? 1})`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Next',
+          onPress: (qty) => {
+            const quantityToSell = parseInt(qty, 10) || 1;
+            if (isNaN(quantityToSell) || quantityToSell < 1) {
+              Alert.alert('Error', 'Please enter a valid quantity.');
+              return;
+            }
+            // Prompt for price
+            Alert.prompt(
+              'Sale Price',
+              `Enter sale price for "${product.product_name}" (Default: ${product.price ?? 0})`,
+              [
+                {
+                  text: 'Cancel',
+                  style: 'cancel',
+                },
+                {
+                  text: 'Review',
+                  onPress: (enteredPrice) => {
+                    const salePrice = parseFloat(enteredPrice);
+                    const storedPrice = parseFloat(product.price) || 0;
+                    if (isNaN(salePrice) || salePrice < 0) {
+                      Alert.alert('Error', 'Please enter a valid price.');
+                      return;
+                    }
+                    if (salePrice !== storedPrice) {
+                      Alert.alert('Warning', 'Entered price does not match the product price. Please double-check for accuracy.');
+                    }
+                    // Prepare confirmation modal
+                    const currentQty = product.quantity ?? 1;
+                    if (quantityToSell > currentQty) {
+                      Alert.alert('Error', 'Not enough quantity in stock.');
+                      return;
+                    }
+                    setPendingSale({
+                      product,
+                      quantity: quantityToSell,
+                      price: salePrice,
+                      inventoryAfter: Math.max(currentQty - quantityToSell, 0),
+                      date: new Date(),
+                    });
+                    setConfirmModalVisible(true);
+                  },
+                },
+              ],
+              'plain-text',
+              String(product.price ?? 0)
+            );
+          },
+        },
+      ],
+      'plain-text',
+      '1'
+    );
+  };
+
+  // Confirm sale handler
+  const handleConfirmSale = async () => {
+    if (!pendingSale) return;
+    const { product, quantity, price, inventoryAfter, date } = pendingSale;
+    try {
+      // Fetch latest product data
+      const latest = await db.getProductById(product.id);
+      const currentQty = latest?.quantity ?? 1;
+      if (quantity > currentQty) {
+        Alert.alert('Error', 'Not enough quantity in stock.');
+        setConfirmModalVisible(false);
+        setPendingSale(null);
+        return;
+      }
+      // Update product quantity
+      await db.updateProduct(product.id, {
+        quantity: inventoryAfter,
+      });
+      // Log the sale with price and quantity
+      const saleRecord = await db.addSale({
+        product_name: product.product_name,
+        barcode: product.barcode,
+        user_id: product.user_id,
+        category: product.category,
+        price,
+        quantity,
+      });
+      loadProducts();
+      setConfirmModalVisible(false);
+      setPendingSale(null);
+      Alert.alert(
+        'Sale Completed',
+        `Sale completed! ${quantity} units of ${product.product_name} sold at $${price.toFixed(2)} each.\nInventory updated and transaction recorded.\n\nTransaction ID: ${saleRecord?.id || 'N/A'}\nDate/Time: ${date.toLocaleString()}`
+      );
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Failed to complete sale.');
+      setConfirmModalVisible(false);
+      setPendingSale(null);
+    }
   };
 
   // Filter and search logic
@@ -164,7 +281,11 @@ const ProductManagementScreen = ({ route, navigation }) => {
           <Text style={styles.itemText}>{item.barcode}</Text>
           <Text style={styles.categoryText}>{item.category || 'Other'}</Text>
           <Text style={styles.quantityText}>Qty: {item.quantity ?? 1}</Text>
+          <Text style={styles.priceText}>Price: ${item.price ? Number(item.price).toFixed(2) : '0.00'}</Text>
         </View>
+        <TouchableOpacity style={styles.sellButton} onPress={() => handleSellProduct(item)}>
+          <Text style={styles.sellButtonText}>Sell</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.editButton} onPress={() => handleEditProduct(item)}>
           <Text style={styles.editButtonText}>Edit</Text>
         </TouchableOpacity>
@@ -195,6 +316,13 @@ const ProductManagementScreen = ({ route, navigation }) => {
         placeholder="Quantity"
         value={quantity}
         onChangeText={setQuantity}
+        keyboardType="numeric"
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Price"
+        value={price}
+        onChangeText={setPrice}
         keyboardType="numeric"
       />
       <DropDownPicker
@@ -240,6 +368,33 @@ const ProductManagementScreen = ({ route, navigation }) => {
         keyExtractor={(item) => item.id}
         style={styles.list}
       />
+      <Modal
+        visible={confirmModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setConfirmModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Confirm Sale</Text>
+            {pendingSale && (
+              <>
+                <Text style={styles.modalText}>Product Sold: {pendingSale.product.product_name}</Text>
+                <Text style={styles.modalText}>Quantity Sold: {pendingSale.quantity}</Text>
+                <Text style={styles.modalText}>Sale Price (per unit): ${pendingSale.price.toFixed(2)}</Text>
+                <Text style={styles.modalText}>Total Sale Amount: ${(pendingSale.quantity * pendingSale.price).toFixed(2)}</Text>
+                <Text style={styles.modalText}>Inventory Deducted: {pendingSale.quantity}</Text>
+                <Text style={styles.modalText}>Inventory Remaining: {pendingSale.inventoryAfter}</Text>
+                <Text style={styles.modalText}>Date/Time: {pendingSale.date.toLocaleString()}</Text>
+              </>
+            )}
+            <View style={styles.modalButtonRow}>
+              <Button title="Cancel" onPress={() => { setConfirmModalVisible(false); setPendingSale(null); }} color="#888" />
+              <Button title="Confirm" onPress={handleConfirmSale} color="#007AFF" />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -342,6 +497,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     fontWeight: 'bold',
+  },
+  sellButton: {
+    backgroundColor: '#4CAF50',
+    borderRadius: 8,
+    padding: 8,
+    marginLeft: 8,
+  },
+  sellButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  priceText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 24,
+    width: '85%',
+    alignItems: 'flex-start',
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    alignSelf: 'center',
+  },
+  modalText: {
+    fontSize: 16,
+    marginBottom: 6,
+  },
+  modalButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 18,
   },
 });
 
