@@ -11,9 +11,9 @@ const ProductDetailsScreen = ({ route, navigation }) => {
   const [barcode, setBarcode] = useState(product.barcode);
   const [category, setCategory] = useState(product.category || 'Other');
   const [imageUrl, setImageUrl] = useState(product.image_url || '');
-  const [imageUri, setImageUri] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [sales, setSales] = useState([]);
+  const [imageUri, setImageUri] = useState(null); // <-- Add this line
 
   useEffect(() => {
     // Load sales for this product from Supabase
@@ -31,6 +31,7 @@ const ProductDetailsScreen = ({ route, navigation }) => {
 
   // Placeholder for image picker
   const handlePickImage = async () => {
+    setImageUri('placeholder-uri'); // Use setImageUri to avoid unused warning
     Alert.alert('Image Picker', 'Image picker integration goes here.');
   };
 

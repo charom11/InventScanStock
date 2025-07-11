@@ -1,6 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { signUpWithEmail, signInWithEmail, signOut } from '../utils/auth';
+import { signUpWithProfile, signInWithEmail, signOut } from '../utils/auth';
 import { supabase } from '../utils/supabase';
 
 const AuthContext = createContext();
@@ -22,7 +21,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     checkAuthStatus();
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser({
           id: session.user.id,
@@ -42,7 +41,7 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuthStatus = async () => {
     try {
-      const { data, error } = await supabase.auth.getSession();
+      const { data } = await supabase.auth.getSession();
       const session = data?.session;
       if (session?.user) {
         setUser({
@@ -59,31 +58,25 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const signUp = async (email, password, username) => {
+  const signUp = async (email, password, fullName, avatarUrl = '') => {
     try {
-      // Supabase Auth sign up
-      const { user, error } = await signUpWithEmail(email, password);
-      if (error) throw error;
-      // Optionally update user metadata with username
-      if (user && username) {
-        await supabase.auth.updateUser({ data: { username } });
-      }
-      return { success: true, user };
-    } catch (error) {
-      console.error('Signup error:', error);
-      throw error;
+      // Sign up and create profile row
+      const newUser = await signUpWithProfile(email, password, fullName, avatarUrl);
+      return { success: true, user: newUser };
+    } catch (err) {
+      console.error('Signup error:', err);
+      throw err;
     }
   };
 
   const logIn = async (email, password) => {
     try {
       // Supabase Auth login
-      const { user, error } = await signInWithEmail(email, password);
-      if (error) throw error;
-      return { success: true, user };
-    } catch (error) {
-      console.error('Login error:', error);
-      throw error;
+      const { user: loggedInUser } = await signInWithEmail(email, password);
+      return { success: true, user: loggedInUser };
+    } catch (err) {
+      console.error('Login error:', err);
+      throw err;
     }
   };
 

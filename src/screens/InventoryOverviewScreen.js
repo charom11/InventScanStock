@@ -40,12 +40,6 @@ const InventoryOverviewScreen = ({ navigation }) => {
         />
       </View>
       <View style={styles.buttonContainer}>
-        <Button
-          title="Debug Console"
-          onPress={() => navigation.navigate('Debug')}
-        />
-      </View>
-      <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>

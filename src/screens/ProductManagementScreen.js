@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, FlatList, Alert, Image, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, FlatList, Alert, Image, TouchableOpacity, Platform } from 'react-native';
+import DropDownPicker from 'react-native-dropdown-picker';
 import { Picker } from '@react-native-picker/picker';
 import { db, storage } from '../utils/supabase';
 import { useAuth } from '../context/AuthContext';
-import ProductDetailsScreen from './ProductDetailsScreen'; // Only needed if you want to use it directly
 // import ImagePicker from 'react-native-image-picker'; // Uncomment if installed
 
 const CATEGORIES = ['All', 'Electronics', 'Groceries', 'Clothing', 'Books', 'Other'];
@@ -17,7 +17,14 @@ const ProductManagementScreen = ({ route, navigation }) => {
   const [editingProduct, setEditingProduct] = useState(null);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
+  const [quantity, setQuantity] = useState('1');
   const { user } = useAuth();
+
+  // Dropdown state for react-native-dropdown-picker
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [filterCategoryOpen, setFilterCategoryOpen] = useState(false);
+  const [categoryItems, setCategoryItems] = useState(CATEGORIES.filter(c => c !== 'All').map(cat => ({ label: cat, value: cat })));
+  const [filterCategoryItems, setFilterCategoryItems] = useState(CATEGORIES.map(cat => ({ label: cat, value: cat })));
 
   const loadProducts = useCallback(async () => {
     try {
@@ -69,6 +76,7 @@ const ProductManagementScreen = ({ route, navigation }) => {
           barcode,
           image_url: imageUrl || editingProduct.image_url || '',
           category,
+          quantity: parseInt(quantity, 10) || 1,
         });
         Alert.alert('Success', 'Product updated successfully.');
       } else {
@@ -79,6 +87,7 @@ const ProductManagementScreen = ({ route, navigation }) => {
           image_url: imageUrl,
           user_id: user.id,
           category,
+          quantity: parseInt(quantity, 10) || 1,
         });
         // Log a sale
         await db.addSale({
@@ -94,6 +103,7 @@ const ProductManagementScreen = ({ route, navigation }) => {
       setImageUri(null);
       setEditingProduct(null);
       setCategory('Other');
+      setQuantity('1');
       loadProducts();
     } catch (error) {
       console.error(error);
@@ -124,6 +134,7 @@ const ProductManagementScreen = ({ route, navigation }) => {
     setImageUri(null); // Optionally set to product.imageUrl if you want to allow image editing
     setEditingProduct(product);
     setCategory(product.category || 'Other');
+    setQuantity(product.quantity ? String(product.quantity) : '1');
   };
 
   const handleProductPress = (product) => {
@@ -141,17 +152,18 @@ const ProductManagementScreen = ({ route, navigation }) => {
   });
 
   const renderItem = ({ item }) => (
-    <TouchableOpacity onPress={() => handleProductPress(item)} style={{ flex: 1 }}>
+    <TouchableOpacity onPress={() => handleProductPress(item)} style={styles.flexOne}>
       <View style={styles.itemContainer}>
         {item.image_url ? (
           <Image source={{ uri: item.image_url }} style={styles.productImage} />
         ) : (
           <View style={styles.imagePlaceholder}><Text>📦</Text></View>
         )}
-        <View style={{ flex: 1 }}>
+        <View style={styles.flexOne}>
           <Text style={styles.itemText}>{item.product_name}</Text>
           <Text style={styles.itemText}>{item.barcode}</Text>
           <Text style={styles.categoryText}>{item.category || 'Other'}</Text>
+          <Text style={styles.quantityText}>Qty: {item.quantity ?? 1}</Text>
         </View>
         <TouchableOpacity style={styles.editButton} onPress={() => handleEditProduct(item)}>
           <Text style={styles.editButtonText}>Edit</Text>
@@ -178,15 +190,26 @@ const ProductManagementScreen = ({ route, navigation }) => {
         value={barcode}
         onChangeText={setBarcode}
       />
-      <Picker
-        selectedValue={category}
-        style={styles.picker}
-        onValueChange={setCategory}
-      >
-        {CATEGORIES.filter(c => c !== 'All').map(cat => (
-          <Picker.Item key={cat} label={cat} value={cat} />
-        ))}
-      </Picker>
+      <TextInput
+        style={styles.input}
+        placeholder="Quantity"
+        value={quantity}
+        onChangeText={setQuantity}
+        keyboardType="numeric"
+      />
+      <DropDownPicker
+        open={categoryOpen}
+        value={category}
+        items={categoryItems}
+        setOpen={setCategoryOpen}
+        setValue={setCategory}
+        setItems={setCategoryItems}
+        placeholder="Select category"
+        style={styles.dropdown}
+        dropDownContainerStyle={styles.dropdownContainer}
+        zIndex={3000}
+        zIndexInverse={1000}
+      />
       <TouchableOpacity style={styles.imagePickerButton} onPress={handlePickImage}>
         <Text style={styles.imagePickerButtonText}>{imageUri ? 'Image Selected' : 'Pick Image'}</Text>
       </TouchableOpacity>
@@ -198,15 +221,19 @@ const ProductManagementScreen = ({ route, navigation }) => {
         value={search}
         onChangeText={setSearch}
       />
-      <Picker
-        selectedValue={filterCategory}
-        style={styles.picker}
-        onValueChange={setFilterCategory}
-      >
-        {CATEGORIES.map(cat => (
-          <Picker.Item key={cat} label={cat} value={cat} />
-        ))}
-      </Picker>
+      <DropDownPicker
+        open={filterCategoryOpen}
+        value={filterCategory}
+        items={filterCategoryItems}
+        setOpen={setFilterCategoryOpen}
+        setValue={setFilterCategory}
+        setItems={setFilterCategoryItems}
+        placeholder="Filter by category"
+        style={styles.dropdown}
+        dropDownContainerStyle={styles.dropdownContainer}
+        zIndex={2000}
+        zIndexInverse={2000}
+      />
       <FlatList
         data={filteredProducts}
         renderItem={renderItem}
@@ -235,9 +262,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingHorizontal: 10,
   },
-  picker: {
-    height: 40,
+  dropdown: {
     marginBottom: 10,
+    minHeight: 40,
+  },
+  dropdownContainer: {
+    marginBottom: 10,
+    zIndex: 3000,
   },
   imagePickerButton: {
     backgroundColor: '#007AFF',
@@ -303,6 +334,14 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     color: '#fff',
     fontWeight: '600',
+  },
+  flexOne: {
+    flex: 1,
+  },
+  quantityText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: 'bold',
   },
 });
 

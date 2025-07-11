@@ -14,7 +14,7 @@ async function testSupabaseConnection() {
     // Test 1: Check if we can connect to Supabase (basic health check)
     console.log('1. Testing basic connection...');
     // Try to select from products table
-    const { data: productsData, error: productsError } = await supabase
+    const { error: productsError } = await supabase
       .from('products')
       .select('*')
       .limit(1);
@@ -43,7 +43,7 @@ async function testSupabaseConnection() {
 
     // Test 3: Check sales table
     console.log('\n3. Testing sales table access...');
-    const { data: salesData, error: salesError } = await supabase
+    const { error: salesError } = await supabase
       .from('sales')
       .select('*')
       .limit(1);

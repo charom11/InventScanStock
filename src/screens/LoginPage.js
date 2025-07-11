@@ -45,7 +45,19 @@ const LoginPage = ({ navigation }) => {
     setIsLoading(true);
     try {
       await logIn(email, password);
-      // Navigation will be handled automatically by the AuthContext
+      // Show success message
+      Alert.alert(
+        'Welcome Back!',
+        'You have successfully logged in to ScanStock.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Navigation will be handled automatically by the AuthContext
+            }
+          }
+        ]
+      );
     } catch (error) {
       Alert.alert('Error', error.message || 'Login failed. Please try again.');
     } finally {

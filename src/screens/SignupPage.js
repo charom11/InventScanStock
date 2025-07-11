@@ -9,13 +9,19 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { validateForm } from '../utils/validation';
+import { launchImageLibrary } from 'react-native-image-picker';
+import { supabase } from '../utils/supabase';
 
 const SignupPage = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
+  const [fullName, setFullName] = useState(''); // New
+  const [avatarUri, setAvatarUri] = useState(''); // Local image URI
+  const [avatarUrl, setAvatarUrl] = useState(''); // Public URL after upload
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -28,21 +34,65 @@ const SignupPage = ({ navigation }) => {
       username,
       password,
       confirmPassword,
+      fullName, // Optionally add to validation
+      avatarUrl, // Optionally add to validation
     });
-    
     setErrors(validation.errors);
     return validation.isValid;
+  };
+
+  const pickAvatar = async () => {
+    launchImageLibrary({ mediaType: 'photo' }, async (response) => {
+      if (response.didCancel) return;
+      if (response.errorCode) {
+        Alert.alert('Error', response.errorMessage);
+        return;
+      }
+      const asset = response.assets[0];
+      setAvatarUri(asset.uri);
+
+      // Upload to Supabase Storage
+      const fileExt = asset.fileName ? asset.fileName.split('.').pop() : 'jpg';
+      const filePath = `avatars/${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from('product-images') // You can use a separate 'avatars' bucket if desired
+        .upload(filePath, {
+          uri: asset.uri,
+          type: asset.type,
+          name: asset.fileName || `avatar.${fileExt}`,
+        });
+      if (uploadError) {
+        Alert.alert('Upload error', uploadError.message);
+        return;
+      }
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(filePath);
+      setAvatarUrl(urlData.publicUrl);
+    });
   };
 
   const handleSignup = async () => {
     if (!validateFormData()) {
       return;
     }
-
     setIsLoading(true);
     try {
-      await signUp(email, password, username);
-      // Navigation will be handled automatically by the AuthContext
+      await signUp(email, password, fullName, avatarUrl); // Pass fullName and avatarUrl
+      // Show success message
+      Alert.alert(
+        'Success!',
+        'Your account has been created successfully. Welcome to ScanStock!',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Navigation will be handled automatically by the AuthContext
+            }
+          }
+        ]
+      );
     } catch (error) {
       Alert.alert('Error', error.message || 'Signup failed. Please try again.');
     } finally {
@@ -138,6 +188,35 @@ const SignupPage = ({ navigation }) => {
                 autoCorrect={false}
               />
               {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Full Name</Text>
+              <TextInput
+                style={[styles.input, errors.fullName && styles.inputError]}
+                placeholder="Enter your full name"
+                value={fullName}
+                onChangeText={(text) => {
+                  setFullName(text);
+                  if (errors.fullName) {
+                    setErrors({ ...errors, fullName: null });
+                  }
+                }}
+                autoCapitalize="words"
+                autoCorrect={false}
+              />
+              {errors.fullName && <Text style={styles.errorText}>{errors.fullName}</Text>}
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Avatar</Text>
+              <TouchableOpacity style={styles.avatarPickerButton} onPress={pickAvatar}>
+                <Text style={styles.avatarPickerButtonText}>Pick Avatar Image</Text>
+              </TouchableOpacity>
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.avatarPreview} />
+              ) : null}
+              {errors.avatarUrl && <Text style={styles.errorText}>{errors.avatarUrl}</Text>}
             </View>
 
             <TouchableOpacity
@@ -245,6 +324,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#007AFF',
     fontWeight: '600',
+  },
+  avatarPickerButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+    padding: 10,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  avatarPickerButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  avatarPreview: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignSelf: 'center',
+    marginBottom: 10,
+    backgroundColor: '#eee',
   },
 });
 
