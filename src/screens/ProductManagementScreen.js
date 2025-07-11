@@ -4,7 +4,7 @@ import DropDownPicker from 'react-native-dropdown-picker';
 import { Picker } from '@react-native-picker/picker';
 import { db, storage } from '../utils/supabase';
 import { useAuth } from '../context/AuthContext';
-// import ImagePicker from 'react-native-image-picker'; // Uncomment if installed
+import ImagePicker from 'react-native-image-picker';
 
 const CATEGORIES = ['All', 'Electronics', 'Groceries', 'Clothing', 'Books', 'Other'];
 
@@ -49,16 +49,30 @@ const ProductManagementScreen = ({ route, navigation }) => {
     }
   }, [route.params?.scannedBarcode]);
 
-  // Placeholder for image picker
+  // Image picker functionality
   const handlePickImage = async () => {
-    // Use react-native-image-picker or similar here
-    // Example:
-    // ImagePicker.launchImageLibrary({}, async (response) => {
-    //   if (!response.didCancel && !response.error) {
-    //     setImageUri(response.uri);
-    //   }
-    // });
-    Alert.alert('Image Picker', 'Image picker integration goes here.');
+    const options = {
+      title: 'Select Product Image',
+      cancelButtonTitle: 'Cancel',
+      takePhotoButtonTitle: 'Take Photo',
+      chooseFromLibraryButtonTitle: 'Choose from Library',
+      mediaType: 'photo',
+      quality: 0.8,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      includeBase64: false,
+    };
+
+    ImagePicker.launchImageLibrary(options, (response) => {
+      if (response.didCancel) {
+        console.log('User cancelled image picker');
+      } else if (response.error) {
+        console.log('ImagePicker Error: ', response.error);
+        Alert.alert('Error', 'Failed to pick image. Please try again.');
+      } else if (response.assets && response.assets[0]) {
+        setImageUri(response.assets[0].uri);
+      }
+    });
   };
 
   const handleAddOrEditProduct = async () => {
